@@ -31,11 +31,22 @@ import Rhino as rc
 #The inputs to this node will be stored as a list in the IN variable.
 dataEnteringNode = IN
 rhObjects = IN[0]
+keys = IN[1]
 
-#get object names
-rhNames = []
-for i in rhObjects:
-	rhNames.append(i.Name)
-	
+#extract all user strings from rhino object
+try:
+	item = item.Geometry
+except:
+	pass
+if not any(isinstance(item, list) for item in keys):
+	userStrings = []
+	for key in keys[index]:
+		userStrings[index].extend(item.GetUserStrings().GetValues(key))
+else:
+	userStrings = [[] for i in range(len(rhObjects))]
+	for index, item in enumerate(rhObjects):
+		for key in keys[index]:
+			userStrings[index].extend(item.GetUserStrings().GetValues(key))
+
 #Assign your output to the OUT variable
-OUT = rhNames
+OUT = userStrings

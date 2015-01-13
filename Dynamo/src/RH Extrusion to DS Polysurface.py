@@ -1,83 +1,102 @@
-<Workspace Version="0.7.4.3090" X="75.2425" Y="163.345" zoom="1.1575" Description="Converts Rhino breps to Design Script polysurfaces. " Category="Archi-lab_MantisShrimp.ReadRhino" Name="RH Brep to DS Polysurface" ID="a1cfdcc1-d453-4c50-923d-6f53aec960fa">
-  <Elements>
-    <DSIronPythonNode.PythonNode type="DSIronPythonNode.PythonNode" guid="4fe994f8-d685-4513-83c4-d4ba5a2f6ec8" nickname="Python Script" x="250" y="0" isVisible="true" isUpstreamVisible="true" lacing="Disabled" inputcount="1">
-      <Script>#Copyright(c) 2014, Konrad Sobon
+#Copyright(c) 2014, Konrad Sobon
 # @arch_laboratory, http://archi-lab.net
 
 import clr
 import sys
 clr.AddReference('ProtoGeometry')
 
-RhinoCommonPath = r'C:\Program Files\Rhinoceros 5 (64-bit)\System'
-if RhinoCommonPath not in sys.path:
-	sys.path.Add(RhinoCommonPath)
-clr.AddReferenceToFileAndPath(RhinoCommonPath + r"\RhinoCommon.dll")
-
 pyt_path = r'C:\Program Files (x86)\IronPython 2.7\Lib'
 sys.path.append(pyt_path)
 
+import os
+appDataPath = os.getenv('APPDATA')
+msPath = appDataPath + r"\Dynamo\0.7\packages\Mantis Shrimp\extra"
+if msPath not in sys.path:
+	sys.path.Add(msPath)
+
+possibleRhPaths = []
+possibleRhPaths.append(r"C:\Program Files\Rhinoceros 5 (64-bit)\System\RhinoCommon.dll")
+possibleRhPaths.append(r"C:\Program Files\Rhinoceros 5.0 (64-bit)\System\RhinoCommon.dll")
+possibleRhPaths.append(r"C:\Program Files\McNeel\Rhinoceros 5.0\System\RhinoCommon.dll")
+possibleRhPaths.append(msPath)
+checkPaths = map(lambda x: os.path.exists(x), possibleRhPaths)
+for i, j in zip(possibleRhPaths, checkPaths):
+	if j and i not in sys.path:
+		sys.path.Add(i)
+		clr.AddReferenceToFileAndPath(i)
+
 from Autodesk.DesignScript.Geometry import *
+import Rhino as rc
 from System import Array
 from System.Collections.Generic import *
-import Rhino as rc
 
 #The inputs to this node will be stored as a list in the IN variable.
 dataEnteringNode = IN
 rhObjects = IN[0]
+_units = IN[1]
+
+#unit conversion function from Rhino to DS
+def toDSUnits(_units):
+	if _units == rc.UnitSystem.Millimeters:
+		return 0.001
+	elif _units == rc.UnitSystem.Centimeters:
+		return 0.01
+	elif _units == rc.UnitSystem.Decimeters:
+		return 0.1
+	elif _units == rc.UnitSystem.Meters:
+		return 1
+	elif _units == rc.UnitSystem.Inches:
+		return 0.0254
+	elif _units == rc.UnitSystem.Feet:
+		return 0.3048
+	elif _units == rc.UnitSystem.Yards:
+		return 0.9144
 
 #Vector3d conversion function
 def rhVector3dToVector(rhVector):
-	VectorX = rhVector.X 
-	VectorY = rhVector.Y
-	VectorZ = rhVector.Z
-	dsVector = Vector.ByCoordinates(VectorX, VectorY, VectorZ)
-	return dsVector
+	VectorX = rhVector.X * toDSUnits(_units)
+	VectorY = rhVector.Y * toDSUnits(_units)
+	VectorZ = rhVector.Z * toDSUnits(_units)
+	return Vector.ByCoordinates(VectorX, VectorY, VectorZ)
 
-#3dPoint Conversion
+#3dPoint Conversion function
 def rhPoint3dToPoint(rhPoint):
-	rhPointX = rhPoint.X
-	rhPointY = rhPoint.Y
-	rhPointZ = rhPoint.Z
-	dsPoint = Point.ByCoordinates(rhPointX, rhPointY, rhPointZ)
-	return dsPoint
+	rhPointX = rhPoint.X * toDSUnits(_units)
+	rhPointY = rhPoint.Y * toDSUnits(_units)
+	rhPointZ = rhPoint.Z * toDSUnits(_units)
+	return Point.ByCoordinates(rhPointX, rhPointY, rhPointZ)
 
 #point/control point conversion function
 def rhPointToPoint(rhPoint):
-	rhPointX = rhPoint.Location.X
-	rhPointY = rhPoint.Location.Y
-	rhPointZ = rhPoint.Location.Z
-	dsPoint = Point.ByCoordinates(rhPointX, rhPointY, rhPointZ)
-	return dsPoint
+	rhPointX = rhPoint.Location.X * toDSUnits(_units)
+	rhPointY = rhPoint.Location.Y * toDSUnits(_units)
+	rhPointZ = rhPoint.Location.Z * toDSUnits(_units)
+	return Point.ByCoordinates(rhPointX, rhPointY, rhPointZ)
 
 #Plane conversion function
 def rhPlaneToPlane(rhPlane):
 	normal = rhVector3dToVector(rhPlane.Normal)
 	origin = rhPoint3dToPoint(rhPlane.Origin)
-	dsPlane = Plane.ByOriginNormal(origin, normal)
-	return dsPlane
+	return Plane.ByOriginNormal(origin, normal)
 
-#Line conversion function
-def rhLineToLine(rhLine):
-	dsStartPoint = rhPoint3dToPoint(rhLine.From)
-	dsEndPoint = rhPoint3dToPoint(rhLine.To)
-	dsLine = Line.ByStartPointEndPoint(dsStartPoint, dsEndPoint)
-	return dsLine
+#LineCurve conversion function
+def rhLineToLine(rhCurve):
+	dsStartPoint = rhPoint3dToPoint(rhCurve.PointAtStart)
+	dsEndPoint = rhPoint3dToPoint(rhCurve.PointAtEnd)
+	return Line.ByStartPointEndPoint(dsStartPoint, dsEndPoint)
+
 #LineCurve conversion function
 def rhLineCurveToLine(rhCurve):
-	rhStartPoint = rhCurve.PointAtStart
-	dsStartPoint = rhPoint3dToPoint(rhStartPoint)
-	rhEndPoint = rhCurve.PointAtEnd
-	dsEndPoint = rhPoint3dToPoint(rhEndPoint)
-	dsLine = Line.ByStartPointEndPoint(dsStartPoint, dsEndPoint)
-	return dsLine
+	dsStartPoint = rhPoint3dToPoint(rhCurve.PointAtStart)
+	dsEndPoint = rhPoint3dToPoint(rhCurve.PointAtEnd)
+	return Line.ByStartPointEndPoint(dsStartPoint, dsEndPoint)
 
 #arc conversion function
 def rhArcToArc(rhArc):
 	dsStartPoint = rhPoint3dToPoint(rhArc.StartPoint)
 	dsEndPoint = rhPoint3dToPoint(rhArc.EndPoint)
 	dsCenter = rhPoint3dToPoint(rhArc.Center)
-	dsArc = Arc.ByCenterPointStartPointEndPoint(dsCenter, dsStartPoint, dsEndPoint)
-	return dsArc
+	return Arc.ByCenterPointStartPointEndPoint(dsCenter, dsStartPoint, dsEndPoint)
 
 #multi span nurbs curve comversion function
 def rhMultiSpanNurbsCurveToCurve(rhCurve):
@@ -183,7 +202,7 @@ def rhPolyCurveToPolyCurve(rhCurve):
 			dsSubCurves.append(rhArcToArc(curve))
 		elif curve.ToString() == "Rhino.Geometry.NurbsCurve" and curve.SpanCount == 1:
 			dsSubCurves.append(rhSingleSpanNurbsCurveToCurve(curve))
-		elif curve.ToString() == "Rhino.Geometry.NurbsCurve" and curve.SpanCount &gt; 1:
+		elif curve.ToString() == "Rhino.Geometry.NurbsCurve" and curve.SpanCount > 1:
 			multiSpanCurves = rhMultiSpanNurbsCurveToCurve(curve)
 			for curve in multiSpanCurves:
 				dsSubCurves.append(curve)
@@ -253,7 +272,7 @@ def groupCurves(Line_List):
 				for P1 in Points: 
 					for P2 in (Current_Line.StartPoint, Current_Line.EndPoint): 
 						distance = P1.DistanceTo(P2) 
-						if distance &lt;= ignore_distance: 
+						if distance <= ignore_distance: 
 							Queue.add(Potential_Match) 
 			Line_List -= Queue 
 		Grouped_Lines.append(Shape) 
@@ -275,7 +294,7 @@ def rhBrepToPolySurface(brep):
 					if trim.TrimType != rc.Geometry.BrepTrimType.Seam:
 						edgeIndex = trim.Edge.EdgeIndex
 						edge = brep.Edges.Item[edgeIndex]
-						if edge.ObjectType.ToString() == "Curve" and edge.SpanCount &gt; 1:
+						if edge.ObjectType.ToString() == "Curve" and edge.SpanCount > 1:
 							dsSubCurves.append(rhMultiSpanNurbsCurveToCurve(edge))
 						elif edge.ObjectType.ToString() == "Curve" and edge.SpanCount == 1:
 							if edge.IsArc():
@@ -299,7 +318,7 @@ def rhBrepToPolySurface(brep):
 				groupedCurves = groupCurves(subCurveSet)
 				for i in groupedCurves:
 					curveArray = List[Curve](i)
-					if curveArray.Count &gt; 1:
+					if curveArray.Count > 1:
 						trimLoops.append(PolyCurve.ByJoinedCurves(curveArray))
 					else:
 						trimLoops.append(curveArray[0])
@@ -322,21 +341,8 @@ for i in rhObjects:
 		i = i.Geometry
 	except:
 		pass
-	if i.ToString() == "Rhino.Geometry.Brep":
-		dsSurfaces.append(rhBrepToPolySurface(i))
+	if i.ToString() == "Rhino.Geometry.Extrusion":
+		brep = i.ToBrep()
+		dsSurfaces.append(rhBrepToPolySurface(brep))
 
-OUT = dsSurfaces</Script>
-    </DSIronPythonNode.PythonNode>
-    <Dynamo.Nodes.Symbol type="Dynamo.Nodes.Symbol" guid="7b28d231-3f9e-45d8-b9fd-1d587129fff0" nickname="Input" x="0" y="0" isVisible="true" isUpstreamVisible="true" lacing="Disabled">
-      <Symbol value="Rhino Object(s)" />
-    </Dynamo.Nodes.Symbol>
-    <Dynamo.Nodes.Output type="Dynamo.Nodes.Output" guid="514094af-939c-4f5a-aaa2-da808ce52f41" nickname="Output" x="449" y="0" isVisible="true" isUpstreamVisible="true" lacing="Disabled">
-      <Symbol value="Polysurface(s)" />
-    </Dynamo.Nodes.Output>
-  </Elements>
-  <Connectors>
-    <Dynamo.Models.ConnectorModel start="4fe994f8-d685-4513-83c4-d4ba5a2f6ec8" start_index="0" end="514094af-939c-4f5a-aaa2-da808ce52f41" end_index="0" portType="0" />
-    <Dynamo.Models.ConnectorModel start="7b28d231-3f9e-45d8-b9fd-1d587129fff0" start_index="0" end="4fe994f8-d685-4513-83c4-d4ba5a2f6ec8" end_index="0" portType="0" />
-  </Connectors>
-  <Notes />
-</Workspace>
+OUT = dsSurfaces

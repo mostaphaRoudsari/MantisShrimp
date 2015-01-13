@@ -57,26 +57,22 @@ def rhPoint3dToPoint(rhPoint):
 	rhPointZ = rhPoint.Z * toDSUnits(_units)
 	return Point.ByCoordinates(rhPointX, rhPointY, rhPointZ)
 
-#poly curve conversion function
-def rhCurveToPolyCurve(rhCurve):
-	ptArray = []
-	pCount = rhCurve.PointCount
-	for i in range(0, pCount):
-		dsPoint = rhPoint3dToPoint(rhCurve.Point(i))
-		ptArray.append(dsPoint)
-	dsPolyCurve = PolyCurve.ByPoints(ptArray)
-	del ptArray[:]
-	return dsPolyCurve
-
 #convert rhino/gh geometry to ds geometry
-dsPolyCurves = []
-for i in rhObjects:
+points = [[] for i in range(len(rhObjects))]
+for index, item in enumerate(rhObjects):
 	try:
-		i = i.Geometry
+		item = item.Geometry
 	except:
 		pass
-	if i.ToString() == "Rhino.Geometry.PolylineCurve":
-		dsPolyCurves.append(rhCurveToPolyCurve(i))
+	if item.ToString() == "Rhino.Geometry.Mesh":
+		faces = item.Faces
+		for i in range(0, faces.Count, 1):
+			points[index].append(rhPoint3dToPoint(faces.GetFaceCenter(i)))
+	else:
+		message = "Please provide Mesh to extract \nFace Center points."
 
 #Assign your output to the OUT variable
-OUT = dsPolyCurves
+if len(points) == 0:
+	OUT = '\n'.join('{:^35}'.format(s) for s in message.split('\n'))
+else:
+	OUT = points

@@ -32,10 +32,14 @@ import Rhino as rc
 dataEnteringNode = IN
 rhObjects = IN[0]
 
-#get object names
-rhNames = []
-for i in rhObjects:
-	rhNames.append(i.Name)
-	
+#convert rhino/gh geometry to ds geometry
+userStringKeys = []
+for item in rhObjects:
+	try:
+		item = item.Geometry
+	except:
+		pass
+	userStringKeys.append(item.GetUserStrings().Keys)
+
 #Assign your output to the OUT variable
-OUT = rhNames
+OUT = userStringKeys
